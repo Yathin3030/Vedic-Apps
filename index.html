@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mantra counter</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e1b1c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#eef0ea;--ink:#16302e;--mute:#5d716e;--bead:#c5cdc6;--brass:#a1761a;--btn:#fbfcf8;--line:#cfd6cf;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1b1c;--ink:#e8efe9;--mute:#8aa09c;--bead:#2a3d3d;--brass:#d6ae55;--btn:#152728;--line:#254040}}
+:root[data-theme="dark"]{--bg:#0e1b1c;--ink:#e8efe9;--mute:#8aa09c;--bead:#2a3d3d;--brass:#d6ae55;--btn:#152728;--line:#254040}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:18px 16px 22px;max-width:480px;margin:0 auto}
+header{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--mute)}
+header b{color:var(--ink);font-weight:600}
+.tools{display:flex;gap:8px}
+.tools button{background:none;border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+.tools button:focus-visible,#tap:focus-visible{outline:2px solid var(--brass);outline-offset:3px}
+.tools button[aria-pressed="false"]{color:var(--mute);text-decoration:line-through}
+.stage{position:relative;width:min(92vw,400px);aspect-ratio:1;margin:8px 0}
+svg{width:100%;height:100%;display:block}
+#tap{position:absolute;inset:17%;border-radius:50%;border:1px solid var(--line);background:var(--btn);color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:transform .08s}
+#tap:active{transform:scale(.96)}
+#num{font-family:"Cormorant Garamond",Georgia,serif;font-weight:600;font-size:clamp(76px,26vw,116px);line-height:1;font-variant-numeric:lining-nums}
+#sub{font-size:14px;color:var(--mute);margin-top:4px;min-height:1.3em}
+.bead{fill:var(--bead);transition:fill .15s}
+.bead.on{fill:var(--ink)}
+.bead.mk{fill:none;stroke:var(--brass);stroke-width:1.6}
+.bead.mk.on{fill:var(--brass)}
+.lab{font-size:10px;fill:var(--brass);text-anchor:middle;font-family:system-ui,sans-serif}
+footer{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--mute)}
+footer button{background:none;border:none;color:var(--mute);font:inherit;padding:8px 4px;cursor:pointer;text-decoration:underline}
+#msg{position:absolute;left:0;right:0;top:-2px;text-align:center;color:var(--brass);font-size:15px;opacity:0;transition:opacity .4s;pointer-events:none}
+#msg.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <span>Malas <b id="malas">0</b></span>
+  <div class="tools">
+    <button id="snd" aria-pressed="true">Sound</button>
+    <button id="vib" aria-pressed="true">Vibrate</button>
+  </div>
+</header>
+<div class="stage">
+  <div id="msg" aria-live="polite"></div>
+  <svg id="ring" viewBox="0 0 400 400" aria-hidden="true"></svg>
+  <button id="tap" aria-label="Count one repetition">
+    <span id="num">0</span>
+    <span id="sub">of 108</span>
+  </button>
+</div>
+<footer>
+  <span>Total <b id="tot" style="color:var(--ink)">0</b></span>
+  <span>Bells at 7, 11, 21, 48, 54, 108</span>
+  <button id="undo">Undo</button>
+</footer>
+<footer style="justify-content:center"><button id="reset">Reset all</button></footer>
+</main>
+<script>
+(function(){
+var N=108, MARKS={7:1,11:1,21:1,48:1,54:1,108:1}, STOPS=[7,11,21,48,54,108];
+var st={n:0,malas:0,snd:true,vib:true};
+try{var s=JSON.parse(localStorage.getItem('mantra')||'null');if(s&&typeof s.n==='number')st=Object.assign(st,s)}catch(e){}
+function save(){try{localStorage.setItem('mantra',JSON.stringify(st))}catch(e){}}
+
+/* ring of 108 beads; bead 108 sits at the top */
+var svg=document.getElementById('ring'),NS='http://www.w3.org/2000/svg',beads=[];
+for(var i=1;i<=N;i++){
+  var a=(i/N)*2*Math.PI-Math.PI/2, r=182, x=200+r*Math.cos(a), y=200+r*Math.sin(a);
+  var c=document.createElementNS(NS,'circle');
+  c.setAttribute('cx',x.toFixed(1));c.setAttribute('cy',y.toFixed(1));
+  c.setAttribute('r',MARKS[i]?7:3.4);
+  c.setAttribute('class','bead'+(MARKS[i]?' mk':''));
+  svg.appendChild(c);beads[i]=c;
+  if(MARKS[i]&&i!==108){
+    var t=document.createElementNS(NS,'text'),lr=160;
+    t.setAttribute('x',(200+lr*Math.cos(a)).toFixed(1));t.setAttribute('y',(200+lr*Math.sin(a)+3.5).toFixed(1));
+    t.setAttribute('class','lab');t.textContent=i;svg.appendChild(t);
+  }
+}
+
+/* audio: synthesised bells, no files */
+var ac=null;
+function ctx(){if(!ac){var C=window.AudioContext||window.webkitAudioContext;if(C)ac=new C()}
+  if(ac&&ac.state==='suspended')ac.resume();return ac}
+function bell(f,t0,dur,vol){
+  var a=ctx();if(!a)return;
+  [[1,1],[2.76,.45],[5.4,.2],[8.93,.08]].forEach(function(p){
+    var o=a.createOscillator(),g=a.createGain();
+    o.type='sine';o.frequency.value=f*p[0];
+    var t=a.currentTime+t0;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol*p[1],t+.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur/p[0]*(p[0]>1?1.2:1));
+    o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+dur+.1);
+  });
+}
+function tick(){
+  var a=ctx();if(!a)return;var t=a.currentTime,o=a.createOscillator(),g=a.createGain();
+  o.type='triangle';o.frequency.setValueAtTime(420,t);o.frequency.exponentialRampToValueAtTime(260,t+.05);
+  g.gain.setValueAtTime(.12,t);g.gain.exponentialRampToValueAtTime(.0001,t+.07);
+  o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.09);
+}
+function play(n){
+  if(n===7){bell(880,0,1.4,.3)}
+  else if(n===11){bell(770,0,1.4,.3);bell(880,.35,1.6,.3)}
+  else if(n===54){bell(396,0,1.8,.35);bell(594,.5,1.8,.35);bell(792,1.0,2.4,.35)}
+  else if(n===21){bell(660,0,1.8,.35)}
+  else if(n===48){bell(495,0,1.8,.35);bell(660,.55,2.2,.35)}
+  else if(n===108){bell(165,0,4.5,.5);bell(330,.1,3.5,.3);bell(495,1.0,3,.3);bell(660,1.9,3.5,.3)}
+}
+
+var num=document.getElementById('num'),sub=document.getElementById('sub'),msg=document.getElementById('msg'),mt;
+function flash(t){msg.textContent=t;msg.classList.add('show');clearTimeout(mt);mt=setTimeout(function(){msg.classList.remove('show')},2600)}
+function render(){
+  num.textContent=st.n;
+  document.getElementById('malas').textContent=st.malas;
+  document.getElementById('tot').textContent=st.malas*N+st.n;
+  var next=STOPS.filter(function(m){return m>st.n})[0];
+  sub.textContent=(next-st.n)+' to '+next;
+  for(var i=1;i<=N;i++)beads[i].classList.toggle('on',i<=st.n);
+  var s=document.getElementById('snd'),v=document.getElementById('vib');
+  s.setAttribute('aria-pressed',st.snd);v.setAttribute('aria-pressed',st.vib);
+}
+function buzz(p){if(st.vib&&navigator.vibrate){try{navigator.vibrate(p)}catch(e){}}}
+
+function count(){
+  st.n++;
+  var n=st.n;
+  if(MARKS[n]){
+    if(st.snd)play(n);
+    buzz(n===108?[60,80,60,80,200]:n===48?[50,60,50]:[60]);
+    if(n===108){
+      st.malas++;st.n=0;
+      flash('Mala complete. Beginning again.');
+    }else flash(n+' reached');
+  }else{
+    if(st.snd)tick();
+    buzz(10);
+  }
+  render();save();
+}
+document.getElementById('tap').addEventListener('click',count);
+document.getElementById('undo').addEventListener('click',function(){
+  if(st.n>0)st.n--;else if(st.malas>0){st.malas--;st.n=N-1}
+  render();save();
+});
+document.getElementById('reset').addEventListener('click',function(){
+  if(st.n===0&&st.malas===0)return;
+  if(this.dataset.arm){st.n=0;st.malas=0;this.textContent='Reset all';delete this.dataset.arm;render();save()}
+  else{this.dataset.arm=1;this.textContent='Tap again to confirm';var b=this;setTimeout(function(){b.textContent='Reset all';delete b.dataset.arm},3000)}
+});
+document.getElementById('snd').addEventListener('click',function(){st.snd=!st.snd;if(st.snd)ctx();render();save()});
+document.getElementById('vib').addEventListener('click',function(){st.vib=!st.vib;render();save()});
+document.addEventListener('keydown',function(e){if(e.code==='Space'&&e.target.tagName!=='BUTTON'){e.preventDefault();count()}});
+render();
+if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){})})}
+})();
+</script>
+</body>
+</html>
